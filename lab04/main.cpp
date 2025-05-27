@@ -5,7 +5,6 @@
 using namespace std;
 using namespace cv;
 
-//create histogram of the image
 vector<int> getHistogram(const Mat& img) {
     vector<int> hist(256, 0);
     for(int i=0; i<img.rows; i++) {
@@ -53,39 +52,30 @@ void equalizeImage(Mat& img) {
     }
 }
 
+Mat binarizeImage(const Mat& img, int threshold) {
+    Mat binaryImg = Mat::zeros(img.size(), CV_8UC1);
+    for(int i = 0; i < img.rows; i++) {
+        for(int j = 0; j < img.cols; j++) {
+            binaryImg.at<uchar>(i, j) = (img.at<uchar>(i, j) < threshold) ? 0 : 255;
+        }
+    }
+    return binaryImg;
+}
+
 int main() {
-    Mat image0 = imread("../img/imagen_0.png", IMREAD_GRAYSCALE);
-    Mat image1 = imread("../img/imagen_1.png", IMREAD_GRAYSCALE);
-    Mat image2 = imread("../img/imagen_2.png", IMREAD_GRAYSCALE);
-    Mat image3 = imread("../img/imagen_3.png", IMREAD_GRAYSCALE);
-    Mat image4 = imread("../img/imagen_4.png", IMREAD_GRAYSCALE);
-    Mat image5 = imread("../img/imagen_5.png", IMREAD_GRAYSCALE);
+    vector<int> thresholds = {255, 255, 125, 125, 125, 120};
+    vector<Mat> images(6);
+    vector<Mat> binImages(6);
 
-    equalizeImage(image0);
-    equalizeImage(image1);
-    equalizeImage(image2);
-    equalizeImage(image3);
-    equalizeImage(image4);
-    equalizeImage(image5);
+    for (int i = 0; i < 6; i++) {
+        images[i] = imread("../img/imagen_" + to_string(i) + ".png", IMREAD_GRAYSCALE);
+        equalizeImage(images[i]);
+        saveHistogram(getHistogram(images[i]), i);
+        imwrite("eqImage" + to_string(i) + ".png", images[i]);
 
-    // Save histograms
-    saveHistogram(getHistogram(image0), 0);
-    saveHistogram(getHistogram(image1), 1);
-    saveHistogram(getHistogram(image2), 2);
-    saveHistogram(getHistogram(image3), 3);
-    saveHistogram(getHistogram(image4), 4);
-    saveHistogram(getHistogram(image5), 5);
-
-    //show
-    imshow("Image 0", image0);
-    imshow("Image 1", image1);
-    imshow("Image 2", image2);
-    imshow("Image 3", image3);
-    imshow("Image 4", image4);
-    imshow("Image 5", image5);
-
-    //press
-    waitKey(0);
+        binImages[i] = binarizeImage(images[i], thresholds[i]);
+        imwrite("binImage" + to_string(i) + ".png", binImages[i]);
+    }
 
     return 0;
 }
