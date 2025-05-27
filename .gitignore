@@ -1,0 +1,12 @@
+# CLion/IntelliJ IDEA (applies to all subdirectories)
+**/.idea/
+**/*.iml
+
+# CMake build directories (covers all variants)
+**/cmake-build-*/
+**/build/
+**/out/
+
+# System/temporary files
+.DS_Store
+Thumbs.db
