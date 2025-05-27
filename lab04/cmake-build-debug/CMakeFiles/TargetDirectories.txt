@@ -1,3 +1,0 @@
-D:/2025_A/graph/lab04/cmake-build-debug/CMakeFiles/lab04.dir
-D:/2025_A/graph/lab04/cmake-build-debug/CMakeFiles/edit_cache.dir
-D:/2025_A/graph/lab04/cmake-build-debug/CMakeFiles/rebuild_cache.dir
