@@ -29,28 +29,63 @@ void saveHistogram(vector<int> hist, int n) {
     }
 }
 
+vector<int> equalizeHistogram(vector<int> hist, int nPixels) {
+    vector<int> f(256);
+    f[0] = 0;
+    int cumulativeAbsFreq = hist[0];
+    for (int i = 1; i < 255; i++) {
+        f[i] = (cumulativeAbsFreq * 255) / nPixels;
+        cumulativeAbsFreq += hist[i];
+    }
+    f[255] = 255;
+    return f;
+}
+
+void equalizeImage(Mat& img) {
+    vector<int> hist = getHistogram(img);
+    int nPixels = img.rows * img.cols;
+    vector<int> f = equalizeHistogram(hist, nPixels);
+
+    for(int i = 0; i < img.rows; i++) {
+        for(int j = 0; j < img.cols; j++) {
+            img.at<uchar>(i, j) = f[img.at<uchar>(i, j)];
+        }
+    }
+}
+
 int main() {
-    Mat image0 = imread("C:/Marko/computerGraph/lab01/open/imagen_0.png", IMREAD_GRAYSCALE);
-    Mat image1 = imread("C:/Marko/computerGraph/lab01/open/imagen_1.png", IMREAD_GRAYSCALE);
-    Mat image2 = imread("C:/Marko/computerGraph/lab01/open/imagen_2.png", IMREAD_GRAYSCALE);
-    Mat image3 = imread("C:/Marko/computerGraph/lab01/open/imagen_3.png", IMREAD_GRAYSCALE);
-    Mat image4 = imread("C:/Marko/computerGraph/lab01/open/imagen_4.png", IMREAD_GRAYSCALE);
-    Mat image5 = imread("C:/Marko/computerGraph/lab01/open/imagen_5.png", IMREAD_GRAYSCALE);
+    Mat image0 = imread("../img/imagen_0.png", IMREAD_GRAYSCALE);
+    Mat image1 = imread("../img/imagen_1.png", IMREAD_GRAYSCALE);
+    Mat image2 = imread("../img/imagen_2.png", IMREAD_GRAYSCALE);
+    Mat image3 = imread("../img/imagen_3.png", IMREAD_GRAYSCALE);
+    Mat image4 = imread("../img/imagen_4.png", IMREAD_GRAYSCALE);
+    Mat image5 = imread("../img/imagen_5.png", IMREAD_GRAYSCALE);
 
-    vector<int> hist0 = getHistogram(image0);
-    vector<int> hist1 = getHistogram(image1);
-    vector<int> hist2 = getHistogram(image2);
-    vector<int> hist3 = getHistogram(image3);
-    vector<int> hist4 = getHistogram(image4);
-    vector<int> hist5 = getHistogram(image5);
+    equalizeImage(image0);
+    equalizeImage(image1);
+    equalizeImage(image2);
+    equalizeImage(image3);
+    equalizeImage(image4);
+    equalizeImage(image5);
 
-    saveHistogram(hist0, 0);
-    saveHistogram(hist1, 1);
-    saveHistogram(hist2, 2);
-    saveHistogram(hist3, 3);
-    saveHistogram(hist4, 4);
-    saveHistogram(hist5, 5);
+    // Save histograms
+    saveHistogram(getHistogram(image0), 0);
+    saveHistogram(getHistogram(image1), 1);
+    saveHistogram(getHistogram(image2), 2);
+    saveHistogram(getHistogram(image3), 3);
+    saveHistogram(getHistogram(image4), 4);
+    saveHistogram(getHistogram(image5), 5);
 
+    //show
+    imshow("Image 0", image0);
+    imshow("Image 1", image1);
+    imshow("Image 2", image2);
+    imshow("Image 3", image3);
+    imshow("Image 4", image4);
+    imshow("Image 5", image5);
+
+    //press
+    waitKey(0);
 
     return 0;
 }

@@ -1,4 +1,4 @@
-C:\Users\msumi\AppData\Local\Programs\CLion\bin\cmake\win\x64\bin\cmake.exe -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=C:/Users/msumi/AppData/Local/Programs/CLion/bin/ninja/win/x64/ninja.exe -G Ninja -S D:\2025_A\graph\ocv -B D:\2025_A\graph\ocv\cmake-build-debug
+C:\Users\msumi\AppData\Local\Programs\CLion\bin\cmake\win\x64\bin\cmake.exe -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=C:/Users/msumi/AppData/Local/Programs/CLion/bin/ninja/win/x64/ninja.exe -G Ninja -S D:\2025_A\graph\lab04 -B D:\2025_A\graph\lab04\cmake-build-debug
 -- The C compiler identification is MSVC 19.36.32532.0
 -- The CXX compiler identification is MSVC 19.36.32532.0
 -- Detecting C compiler ABI info
@@ -12,6 +12,6 @@ C:\Users\msumi\AppData\Local\Programs\CLion\bin\cmake\win\x64\bin\cmake.exe -DCM
 -- Detecting CXX compile features
 -- Detecting CXX compile features - done
 -- Found OpenCV: C:/opencv/build (found version "4.11.0")
--- Configuring done (4.0s)
+-- Configuring done (4.5s)
 -- Generating done (0.0s)
--- Build files have been written to: D:/2025_A/graph/ocv/cmake-build-debug
+-- Build files have been written to: D:/2025_A/graph/lab04/cmake-build-debug
