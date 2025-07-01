@@ -9,7 +9,7 @@ void binarizeImage(const Mat& img, Mat& binaryImg, int threshold) {
     for(int i = 0; i < img.rows; i++) {
         for(int j = 0; j < img.cols; j++) {
             max_ = max(img.at<Vec3b>(i, j)[0], max(img.at<Vec3b>(i, j)[1], img.at<Vec3b>(i, j)[2]));
-            mean = (img.at<Vec3b>(i, j)[0] + img.at<Vec3b>(i, j)[1] + img.at<Vec3b>(i, j)[2]) / 3;
+            mean = (img.at<Vec3b>(i, j)[0] + img.at<Vec3b>(i, j)[1] +   img.at<Vec3b>(i, j)[2]) / 3;
             value = (max_ + mean)/ 2;
             binaryImg.at<uchar>(i, j) = (value < threshold) ? 0 : 255;
         }
@@ -112,7 +112,7 @@ int main() {
         }
         if(foundMovement) {
             trajectoryPoints.push_back(Point((minX + maxX) / 2, (minY + maxY) / 2));
-            //draw two lines from the center of the bounding box to the corners
+
             line(aperturedFrame, Point(minX, minY), Point(minX, maxY), Scalar(255), 1);
             line(aperturedFrame, Point(minX, minY), Point(maxX, minY), Scalar(255), 1);
             line(aperturedFrame, Point(maxX, minY), Point(maxX, maxY), Scalar(255), 1);
