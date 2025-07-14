@@ -33,9 +33,14 @@ public:
                             float y = j + (p1[1] + p2[1]) / 2.0f;
                             float z = k + (p1[2] + p2[2]) / 2.0f;
                             // scale the vertex to render in opengl
-                            x = (x / gridX) * 2.0f - 1.0f; // Scale to [-1, 1]
-                            y = (y / gridY) * 2.0f - 1.0f; // Scale to [-1, 1]
-                            z = (z / gridZ) * 2.0f - 1.0f; // Scale to [-1, 1]
+                            int maxSize = std::max(std::max(gridX,gridY), gridZ);
+                            x = (x / gridX) * 2.0f - 1.0f;
+                            y = (y / gridY) * 2.0f - 1.0f;
+                            z = (z / gridZ) * 2.0f - 1.0f;
+                            x *= gridX*1.0/maxSize;
+                            y *= gridY*1.0/maxSize;
+                            z *= gridZ*1.0/maxSize;
+                            z *= 1.5;// scaling factor for the z axis
                             triPoints.push_back(x);
                             triPoints.push_back(y);
                             triPoints.push_back(z);

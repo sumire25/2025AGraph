@@ -12,13 +12,13 @@
 #include <filesystem>
 
 // Orbital camera variables
-float theta = 0.0f;        // Horizontal rotation (around Y-axis)
-float phi = 0.0f;          // Vertical rotation (elevation)
-float radius = 2.0f;      // Distance from center (increased for better view)
-float roll = 0.0f;         // Roll rotation around view direction
+float theta = 0.0f;
+float phi = 0.0f;
+float radius = 2.0f;
+float roll = 0.0f;
 float lastX = 400, lastY = 300;
 bool firstMouse = true;
-glm::vec3 gridCenter = glm::vec3(5.0f, 5.0f, 5.0f); // Center of the grid
+glm::vec3 gridCenter = glm::vec3(5.0f, 5.0f, 5.0f);
 
 // Vertex Shader
 const char* vertexShaderSource = R"(
@@ -47,14 +47,12 @@ void processInput(GLFWwindow* window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
-    // Clockwise and counterclockwise rotation
     float rollSpeed = 0.01f;
     if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
         roll -= rollSpeed;
     if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
         roll += rollSpeed;
 
-    // Reset roll with R key
     if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
         roll = 0.0f;
 }
@@ -68,22 +66,17 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
     }
 
     float xoffset = xpos - lastX;
-    float yoffset = lastY - ypos; // Reversed since y coordinates go from bottom to top
+    float yoffset = lastY - ypos;
     lastX = xpos;
     lastY = ypos;
 
-    // Sensitivity smooth and responsive
     float sensitivity = 0.003f;
     xoffset *= sensitivity;
     yoffset *= sensitivity;
 
-    // Horizontal mouse movement rotates around Y axis (theta)
     theta += xoffset;
-
-    // Vertical mouse movement changes elevation (phi)
     phi += yoffset;
 
-    // Clamp phi to prevent flipping over the poles
     if (phi > M_PI/2 - 0.05f) phi = M_PI/2 - 0.05f;
     if (phi < -M_PI/2 + 0.05f) phi = -M_PI/2 + 0.05f;
 }
@@ -93,9 +86,9 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
     float zoomFactor = 1.0f + (yoffset * 0.1f);
     radius /= zoomFactor;
 
-    // Clamp zoom limits
-    //if (radius < 2.0f) radius = 2.0f;
-    //if (radius > 100.0f) radius = 100.0f;
+    // zoom limits
+    if (radius < 2.0f) radius = 2.0f;
+    if (radius > 100.0f) radius = 100.0f;
 }
 
 // Callback to adjust the viewport when the window is resized
@@ -166,14 +159,14 @@ int main() {
     // Create shader program
     GLuint shaderProgram = createShaderProgram(vertexShaderSource, fragmentShaderSource);
 
-    // Define grid and run Marching Cubes
+    // Define grid
     int gridX, gridY, gridZ, organNum;
     organNum = 0;
     std::vector<std::vector<bool>> organGrids;
     GridFromTiff gridFromTiff;
     organGrids.push_back(std::vector<bool>());
     gridFromTiff.run("../skeletonMasks.tiff", organGrids[organNum], gridX, gridY, gridZ);
-    //recalculate center of object, which is the center of all the points in true
+    //recalculate center of object
     int count = 0;
     for (int x = 0; x < gridX; ++x) {
         for (int y = 0; y < gridY; ++y) {
@@ -206,7 +199,7 @@ int main() {
     mc.run(organTriPoints[organNum], organGrids[organNum], gridX, gridY, gridZ);
     organColors.push_back(glm::vec3(1.0f, 0.8f, 0.6f));
     organNum++;
-    std::string folderPath = "../tiff"; // Path to the folder
+    /*std::string folderPath = "../tiff"; // Path to the folder
     try {
         for (const auto& entry : std::filesystem::directory_iterator(folderPath)) {
             if (entry.is_regular_file()) {
@@ -222,7 +215,7 @@ int main() {
         }
     } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "Error: " << e.what() << std::endl;
-    }
+    }*/
 
     // Create VAO and VBO for triPoints
     std::vector<GLuint> organVAOs(organNum), organVBOs(organNum);
@@ -235,16 +228,7 @@ int main() {
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(0);
     }
-    /*
-    GLuint triVAO, triVBO;
-    glGenVertexArrays(1, &triVAO);
-    glGenBuffers(1, &triVBO);
-    glBindVertexArray(triVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, triVBO);
-    glBufferData(GL_ARRAY_BUFFER, triPoints.size() * sizeof(float), triPoints.data(), GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-*/
+
     // Axis vertices
     std::vector<float> axisVertices = {
         // X-axis (red)
@@ -315,12 +299,6 @@ int main() {
             glBindVertexArray(organVAOs[i]);
             glDrawArrays(GL_TRIANGLES, 0, organTriPoints[i].size() / 3);
         }
-        /*
-        if (triPoints.size() > 0) {
-            glUniform3f(glGetUniformLocation(shaderProgram, "color"), 1.0f, 0.0f, 0.0f);
-            glBindVertexArray(triVAO);
-            glDrawArrays(GL_TRIANGLES, 0, triPoints.size() / 3);
-        }*/
 
         // Render axes
         glUniform3f(glGetUniformLocation(shaderProgram, "color"), 1.0f, 0.0f, 0.0f); // Red for X-axis
