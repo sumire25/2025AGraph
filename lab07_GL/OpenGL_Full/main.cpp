@@ -8,6 +8,8 @@
 #include <vector>
 #include <iostream>
 #include <cmath>
+#include <algorithm>
+#include <filesystem>
 
 // Orbital camera variables
 float theta = 0.0f;        // Horizontal rotation (around Y-axis)
@@ -164,19 +166,19 @@ int main() {
     // Create shader program
     GLuint shaderProgram = createShaderProgram(vertexShaderSource, fragmentShaderSource);
 
-
     // Define grid and run Marching Cubes
-    int gridX, gridY, gridZ;
-    std::vector<bool> grid;
+    int gridX, gridY, gridZ, organNum;
+    organNum = 0;
+    std::vector<std::vector<bool>> organGrids;
     GridFromTiff gridFromTiff;
-    gridFromTiff.run("../tiff/skeletonMasks.tiff", grid, gridX, gridY, gridZ);
-    std::cout << "grid size: "<<grid.size()<<std::endl;
+    organGrids.push_back(std::vector<bool>());
+    gridFromTiff.run("../skeletonMasks.tiff", organGrids[organNum], gridX, gridY, gridZ);
     //recalculate center of object, which is the center of all the points in true
     int count = 0;
     for (int x = 0; x < gridX; ++x) {
         for (int y = 0; y < gridY; ++y) {
             for (int z = 0; z < gridZ; ++z) {
-                if (grid[INDEX(x, y, z, gridX, gridY)]) {
+                if (organGrids[organNum][INDEX(x, y, z, gridX, gridY)]) {
                     gridCenter.x += x;
                     gridCenter.y += y;
                     gridCenter.z += z;
@@ -189,7 +191,6 @@ int main() {
         gridCenter.x /= count;
         gridCenter.y /= count;
         gridCenter.z /= count;
-        //escale gridCenter to [-1, 1] range
         gridCenter.x = (gridCenter.x / gridX) * 2.0f - 1.0f; // Scale to [-1, 1]
         gridCenter.y = (gridCenter.y / gridY) * 2.0f - 1.0f; // Scale to [-1, 1]
         gridCenter.z = (gridCenter.z / gridZ) * 2.0f - 1.0f; // Scale to [-1, 1]
@@ -197,13 +198,44 @@ int main() {
         std::cerr << "No points found in the grid." << std::endl;
         return -1;
     }
-    std::vector<float> triPoints;
-
-    // Run Marching Cubes
+    // Marching Cubes
+    std::vector<std::vector<float>> organTriPoints;
+    std::vector<glm::vec3> organColors;
     MarchingCubes mc;
-    mc.run(triPoints, grid, gridX, gridY, gridZ);
+    organTriPoints.push_back(std::vector<float>());
+    mc.run(organTriPoints[organNum], organGrids[organNum], gridX, gridY, gridZ);
+    organColors.push_back(glm::vec3(1.0f, 0.8f, 0.6f));
+    organNum++;
+    std::string folderPath = "../tiff"; // Path to the folder
+    try {
+        for (const auto& entry : std::filesystem::directory_iterator(folderPath)) {
+            if (entry.is_regular_file()) {
+                std::string filePath = entry.path().string();
+                std::replace(filePath.begin(), filePath.end(), '\\', '/');
+                organGrids.push_back(std::vector<bool>());
+                organTriPoints.push_back(std::vector<float>());
+                gridFromTiff.run(filePath, organGrids[organNum], gridX, gridY, gridZ);
+                mc.run(organTriPoints[organNum], organGrids[organNum], gridX, gridY, gridZ);
+                organColors.push_back(glm::vec3(static_cast<float>(organNum) / 16.0f, 0.5f, 0.5f));
+                organNum++;
+            }
+        }
+    } catch (const std::filesystem::filesystem_error& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
 
     // Create VAO and VBO for triPoints
+    std::vector<GLuint> organVAOs(organNum), organVBOs(organNum);
+    for (int i = 0; i < organNum; ++i) {
+        glGenVertexArrays(1, &organVAOs[i]);
+        glGenBuffers(1, &organVBOs[i]);
+        glBindVertexArray(organVAOs[i]);
+        glBindBuffer(GL_ARRAY_BUFFER, organVBOs[i]);
+        glBufferData(GL_ARRAY_BUFFER, organTriPoints[i].size() * sizeof(float), organTriPoints[i].data(), GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+    }
+    /*
     GLuint triVAO, triVBO;
     glGenVertexArrays(1, &triVAO);
     glGenBuffers(1, &triVBO);
@@ -212,33 +244,7 @@ int main() {
     glBufferData(GL_ARRAY_BUFFER, triPoints.size() * sizeof(float), triPoints.data(), GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-
-    // Create VAO and VBO for grid points
-    std::vector<float> gridPoints;
-    for (int x = 0; x < gridX; ++x) {
-        for (int y = 0; y < gridY; ++y) {
-            for (int z = 0; z < gridZ; ++z) {
-                if (grid[INDEX(x, y, z, gridX, gridY)]) {
-                    gridPoints.push_back(x);
-                    gridPoints.push_back(y);
-                    gridPoints.push_back(z);
-                }
-            }
-        }
-    }
-    //print grid points size
-    std::cout << "Grid points size: " << gridPoints.size() << std::endl;
-
-    GLuint gridVAO, gridVBO;
-    glGenVertexArrays(1, &gridVAO);
-    glGenBuffers(1, &gridVBO);
-    glBindVertexArray(gridVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, gridVBO);
-    glBufferData(GL_ARRAY_BUFFER, gridPoints.size() * sizeof(float), gridPoints.data(), GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-
+*/
     // Axis vertices
     std::vector<float> axisVertices = {
         // X-axis (red)
@@ -303,27 +309,25 @@ int main() {
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
-        // Render triangles from marching cubes
+        // Render triangles from each organ
+        for (int i = 0; i < organNum; ++i) {
+            glUniform3f(glGetUniformLocation(shaderProgram, "color"), organColors[i].r, organColors[i].g, organColors[i].b);
+            glBindVertexArray(organVAOs[i]);
+            glDrawArrays(GL_TRIANGLES, 0, organTriPoints[i].size() / 3);
+        }
+        /*
         if (triPoints.size() > 0) {
             glUniform3f(glGetUniformLocation(shaderProgram, "color"), 1.0f, 0.0f, 0.0f);
             glBindVertexArray(triVAO);
             glDrawArrays(GL_TRIANGLES, 0, triPoints.size() / 3);
-        }
-
-        // Render grid points
-        glUniform3f(glGetUniformLocation(shaderProgram, "color"), 0.0f, 1.0f, 0.0f);
-        glBindVertexArray(gridVAO);
-        glPointSize(5.0f);
-        glDrawArrays(GL_POINTS, 0, gridPoints.size() / 3);
+        }*/
 
         // Render axes
         glUniform3f(glGetUniformLocation(shaderProgram, "color"), 1.0f, 0.0f, 0.0f); // Red for X-axis
         glBindVertexArray(axisVAO);
         glDrawArrays(GL_LINES, 0, 2);
-
         glUniform3f(glGetUniformLocation(shaderProgram, "color"), 0.0f, 1.0f, 0.0f); // Green for Y-axis
         glDrawArrays(GL_LINES, 2, 2);
-
         glUniform3f(glGetUniformLocation(shaderProgram, "color"), 0.0f, 0.0f, 1.0f); // Blue for Z-axis
         glDrawArrays(GL_LINES, 4, 2);
 
@@ -333,10 +337,12 @@ int main() {
     }
 
     // Cleanup
-    glDeleteVertexArrays(1, &triVAO);
-    glDeleteBuffers(1, &triVBO);
-    glDeleteVertexArrays(1, &gridVAO);
-    glDeleteBuffers(1, &gridVBO);
+    for (int i = 0; i < organNum; ++i) {
+        glDeleteVertexArrays(1, &organVAOs[i]);
+        glDeleteBuffers(1, &organVBOs[i]);
+    }
+    glDeleteVertexArrays(1, &axisVAO);
+    glDeleteBuffers(1, &axisVBO);
     glDeleteProgram(shaderProgram);
 
     glfwTerminate();
