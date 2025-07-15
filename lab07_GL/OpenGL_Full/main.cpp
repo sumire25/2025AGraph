@@ -18,7 +18,9 @@ float radius = 2.0f;
 float roll = 0.0f;
 float lastX = 400, lastY = 300;
 bool firstMouse = true;
-glm::vec3 gridCenter = glm::vec3(5.0f, 5.0f, 5.0f);
+glm::vec3 gridCenter = glm::vec3(0.0f, 0.0f, 0.0f);
+// to switch the rendering of the organs
+std::vector<bool> organVisibility(26, true);
 
 // Vertex Shader
 const char* vertexShaderSource = R"(
@@ -48,13 +50,21 @@ void processInput(GLFWwindow* window) {
         glfwSetWindowShouldClose(window, true);
 
     float rollSpeed = 0.01f;
-    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS)
         roll -= rollSpeed;
-    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+    else if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS)
         roll += rollSpeed;
-
-    if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
+    else if (glfwGetKey(window, GLFW_KEY_Y) == GLFW_PRESS)
         roll = 0.0f;
+}
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if (key >= GLFW_KEY_A && key < GLFW_KEY_X && action == GLFW_PRESS) {
+        int organIndex = key - GLFW_KEY_A;
+        if (organIndex < organVisibility.size()) {
+            organVisibility[organIndex] = !organVisibility[organIndex];
+        }
+    }
 }
 
 // Mouse movement callback for orbital rotation
@@ -83,11 +93,11 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
 
 // Scroll callback for zooming
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
-    float zoomFactor = 1.0f + (yoffset * 0.1f);
+    float zoomFactor = 1.0f + (yoffset * 0.5f);
     radius /= zoomFactor;
 
     // zoom limits
-    if (radius < 2.0f) radius = 2.0f;
+    if (radius < 0.001f) radius = 0.001f;
     if (radius > 100.0f) radius = 100.0f;
 }
 
@@ -142,8 +152,9 @@ int main() {
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetScrollCallback(window, scroll_callback);
+    glfwSetKeyCallback(window, key_callback);
 
-    // Capture the mouse for smooth interaction
+    // Capture the mouse
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     // Initialize GLAD
@@ -163,43 +174,13 @@ int main() {
     int gridX, gridY, gridZ, organNum;
     organNum = 0;
     std::vector<std::vector<bool>> organGrids;
-    GridFromTiff gridFromTiff;
-    organGrids.push_back(std::vector<bool>());
-    gridFromTiff.run("../skeletonMasks.tiff", organGrids[organNum], gridX, gridY, gridZ);
-    //recalculate center of object
-    int count = 0;
-    for (int x = 0; x < gridX; ++x) {
-        for (int y = 0; y < gridY; ++y) {
-            for (int z = 0; z < gridZ; ++z) {
-                if (organGrids[organNum][INDEX(x, y, z, gridX, gridY)]) {
-                    gridCenter.x += x;
-                    gridCenter.y += y;
-                    gridCenter.z += z;
-                    count++;
-                }
-            }
-        }
-    }
-    if (count > 0) {
-        gridCenter.x /= count;
-        gridCenter.y /= count;
-        gridCenter.z /= count;
-        gridCenter.x = (gridCenter.x / gridX) * 2.0f - 1.0f; // Scale to [-1, 1]
-        gridCenter.y = (gridCenter.y / gridY) * 2.0f - 1.0f; // Scale to [-1, 1]
-        gridCenter.z = (gridCenter.z / gridZ) * 2.0f - 1.0f; // Scale to [-1, 1]
-    } else {
-        std::cerr << "No points found in the grid." << std::endl;
-        return -1;
-    }
-    // Marching Cubes
+    std::vector<std::vector<float>> organCenters;
     std::vector<std::vector<float>> organTriPoints;
     std::vector<glm::vec3> organColors;
+    GridFromTiff gridFromTiff;
     MarchingCubes mc;
-    organTriPoints.push_back(std::vector<float>());
-    mc.run(organTriPoints[organNum], organGrids[organNum], gridX, gridY, gridZ);
-    organColors.push_back(glm::vec3(1.0f, 0.8f, 0.6f));
-    organNum++;
-    /*std::string folderPath = "../tiff"; // Path to the folder
+
+    std::string folderPath = "../tiff";
     try {
         for (const auto& entry : std::filesystem::directory_iterator(folderPath)) {
             if (entry.is_regular_file()) {
@@ -207,15 +188,16 @@ int main() {
                 std::replace(filePath.begin(), filePath.end(), '\\', '/');
                 organGrids.push_back(std::vector<bool>());
                 organTriPoints.push_back(std::vector<float>());
-                gridFromTiff.run(filePath, organGrids[organNum], gridX, gridY, gridZ);
+                organCenters.push_back(std::vector<float>());
+                gridFromTiff.run(filePath, organGrids[organNum], gridX, gridY, gridZ, organCenters[organNum]);
                 mc.run(organTriPoints[organNum], organGrids[organNum], gridX, gridY, gridZ);
-                organColors.push_back(glm::vec3(static_cast<float>(organNum) / 16.0f, 0.5f, 0.5f));
+                organColors.push_back(glm::vec3((organNum % 3) / 2.0f, ((organNum / 3) % 3) / 2.0f, ((organNum / 9) % 3) / 2.0f));
                 organNum++;
             }
         }
     } catch (const std::filesystem::filesystem_error& e) {
         std::cerr << "Error: " << e.what() << std::endl;
-    }*/
+    }
 
     // Create VAO and VBO for triPoints
     std::vector<GLuint> organVAOs(organNum), organVBOs(organNum);
@@ -259,6 +241,23 @@ int main() {
         // Use shader program
         glUseProgram(shaderProgram);
 
+        //Set gridCenter based on the organs visibility
+        int visibleOrgans = 0;
+        gridCenter = glm::vec3(0.0f, 0.0f, 0.0f);
+        for(int i = 0; i < organNum; ++i) {
+            if(organVisibility[i]) {
+                gridCenter.x += organCenters[i][0];
+                gridCenter.y += organCenters[i][1];
+                gridCenter.z += organCenters[i][2];
+                visibleOrgans++;
+            }
+        }
+        if (visibleOrgans > 0) {
+            gridCenter.x /= visibleOrgans;
+            gridCenter.y /= visibleOrgans;
+            gridCenter.z /= visibleOrgans;
+        }
+
         // Calculate orbital camera position
         float x = gridCenter.x + radius * cos(phi) * cos(theta);
         float y = gridCenter.y + radius * sin(phi);
@@ -295,9 +294,11 @@ int main() {
 
         // Render triangles from each organ
         for (int i = 0; i < organNum; ++i) {
-            glUniform3f(glGetUniformLocation(shaderProgram, "color"), organColors[i].r, organColors[i].g, organColors[i].b);
-            glBindVertexArray(organVAOs[i]);
-            glDrawArrays(GL_TRIANGLES, 0, organTriPoints[i].size() / 3);
+            if(organVisibility[i]) {
+                glUniform3f(glGetUniformLocation(shaderProgram, "color"), organColors[i].r, organColors[i].g, organColors[i].b);
+                glBindVertexArray(organVAOs[i]);
+                glDrawArrays(GL_TRIANGLES, 0, organTriPoints[i].size() / 3);
+            }
         }
 
         // Render axes
