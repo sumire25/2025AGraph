@@ -21,21 +21,41 @@ bool firstMouse = true;
 glm::vec3 gridCenter = glm::vec3(0.0f, 0.0f, 0.0f);
 // to switch the rendering of the organs
 std::vector<bool> organVisibility(26, true);
+bool fillTriangles = true;
 
 // Vertex Shader
 const char* vertexShaderSource = R"(
 #version 330 core
 layout(location = 0) in vec3 position;
+layout(location = 1) in vec3 normal;
+out vec3 FragPos;
+out vec3 Normal;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 void main() {
+    FragPos = vec3(model * vec4(position, 1.0));
+    Normal = mat3(transpose(inverse(model))) * normal;
     gl_Position = projection * view * model * vec4(position, 1.0);
 }
 )";
 
 // Fragment Shader
 const char* fragmentShaderSource = R"(
+#version 330 core
+in vec3 FragPos;
+in vec3 Normal;
+out vec4 FragColor;
+uniform vec3 color;
+uniform vec3 lightDir;
+void main() {
+    float diff = max(dot(normalize(Normal), normalize(-lightDir)), 0.0);
+    vec3 diffuse = diff * color;
+    FragColor = vec4(diffuse, 1.0);
+}
+)";
+
+const char* axisFragmentShaderSource = R"(
 #version 330 core
 out vec4 FragColor;
 uniform vec3 color;
@@ -59,7 +79,9 @@ void processInput(GLFWwindow* window) {
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    if (key >= GLFW_KEY_A && key < GLFW_KEY_X && action == GLFW_PRESS) {
+    if (key == GLFW_KEY_W && action == GLFW_PRESS)
+        fillTriangles = !fillTriangles;
+    if (key >= GLFW_KEY_A && key <= GLFW_KEY_Q && action == GLFW_PRESS) {
         int organIndex = key - GLFW_KEY_A;
         if (organIndex < organVisibility.size()) {
             organVisibility[organIndex] = !organVisibility[organIndex];
@@ -169,6 +191,7 @@ int main() {
 
     // Create shader program
     GLuint shaderProgram = createShaderProgram(vertexShaderSource, fragmentShaderSource);
+    GLuint axisShaderProgram = createShaderProgram(vertexShaderSource, axisFragmentShaderSource);
 
     // Define grid
     int gridX, gridY, gridZ, organNum;
@@ -179,7 +202,7 @@ int main() {
     std::vector<glm::vec3> organColors;
     GridFromTiff gridFromTiff;
     MarchingCubes mc;
-
+    std::vector<std::vector<float>> organNormals;
     std::string folderPath = "../tiff";
     try {
         for (const auto& entry : std::filesystem::directory_iterator(folderPath)) {
@@ -191,6 +214,19 @@ int main() {
                 organCenters.push_back(std::vector<float>());
                 gridFromTiff.run(filePath, organGrids[organNum], gridX, gridY, gridZ, organCenters[organNum]);
                 mc.run(organTriPoints[organNum], organGrids[organNum], gridX, gridY, gridZ);
+                std::vector<float> normals;
+                for (size_t j = 0; j < organTriPoints[organNum].size(); j += 9) {
+                    glm::vec3 v0(organTriPoints[organNum][j], organTriPoints[organNum][j+1], organTriPoints[organNum][j+2]);
+                    glm::vec3 v1(organTriPoints[organNum][j+3], organTriPoints[organNum][j+4], organTriPoints[organNum][j+5]);
+                    glm::vec3 v2(organTriPoints[organNum][j+6], organTriPoints[organNum][j+7], organTriPoints[organNum][j+8]);
+                    glm::vec3 n = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+                    for (int k = 0; k < 3; ++k) {
+                        normals.push_back(n.x);
+                        normals.push_back(n.y);
+                        normals.push_back(n.z);
+                    }
+                }
+                organNormals.push_back(normals);
                 organColors.push_back(glm::vec3((organNum % 3) / 2.0f, ((organNum / 3) % 3) / 2.0f, ((organNum / 9) % 3) / 2.0f));
                 organNum++;
             }
@@ -200,15 +236,22 @@ int main() {
     }
 
     // Create VAO and VBO for triPoints
-    std::vector<GLuint> organVAOs(organNum), organVBOs(organNum);
+    std::vector<GLuint> organVAOs(organNum), organVBOs(organNum), organNormalVBOs(organNum);
     for (int i = 0; i < organNum; ++i) {
         glGenVertexArrays(1, &organVAOs[i]);
         glGenBuffers(1, &organVBOs[i]);
+        glGenBuffers(1, &organNormalVBOs[i]);
         glBindVertexArray(organVAOs[i]);
+        // Vértices
         glBindBuffer(GL_ARRAY_BUFFER, organVBOs[i]);
         glBufferData(GL_ARRAY_BUFFER, organTriPoints[i].size() * sizeof(float), organTriPoints[i].data(), GL_STATIC_DRAW);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(0);
+        // Normales
+        glBindBuffer(GL_ARRAY_BUFFER, organNormalVBOs[i]);
+        glBufferData(GL_ARRAY_BUFFER, organNormals[i].size() * sizeof(float), organNormals[i].data(), GL_STATIC_DRAW);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
     }
 
     // Axis vertices
@@ -230,7 +273,6 @@ int main() {
     glBufferData(GL_ARRAY_BUFFER, axisVertices.size() * sizeof(float), axisVertices.data(), GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
-
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {
@@ -286,28 +328,36 @@ int main() {
         glm::mat4 view = glm::lookAt(cameraPos, gridCenter, up);
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
         glm::mat4 model = glm::mat4(1.0f);
+        glm::vec3 lightDir = glm::normalize(cameraPos - gridCenter);
 
         // Set uniform matrices
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-
+        glUniform3fv(glGetUniformLocation(shaderProgram, "lightDir"), 1, glm::value_ptr(lightDir));
         // Render triangles from each organ
+        if (!fillTriangles)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         for (int i = 0; i < organNum; ++i) {
-            if(organVisibility[i]) {
-                glUniform3f(glGetUniformLocation(shaderProgram, "color"), organColors[i].r, organColors[i].g, organColors[i].b);
-                glBindVertexArray(organVAOs[i]);
-                glDrawArrays(GL_TRIANGLES, 0, organTriPoints[i].size() / 3);
-            }
+            if (!organVisibility[i]) continue;
+            glUniform3fv(glGetUniformLocation(shaderProgram, "color"), 1, glm::value_ptr(organColors[i]));
+            glBindVertexArray(organVAOs[i]);
+            glDrawArrays(GL_TRIANGLES, 0, organTriPoints[i].size() / 3);
         }
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
         // Render axes
-        glUniform3f(glGetUniformLocation(shaderProgram, "color"), 1.0f, 0.0f, 0.0f); // Red for X-axis
+        glUseProgram(axisShaderProgram);
+        glUniformMatrix4fv(glGetUniformLocation(axisShaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(glGetUniformLocation(axisShaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(glGetUniformLocation(axisShaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+
+        glUniform3f(glGetUniformLocation(axisShaderProgram, "color"), 1.0f, 0.0f, 0.0f); // Rojo eje X
         glBindVertexArray(axisVAO);
         glDrawArrays(GL_LINES, 0, 2);
-        glUniform3f(glGetUniformLocation(shaderProgram, "color"), 0.0f, 1.0f, 0.0f); // Green for Y-axis
+        glUniform3f(glGetUniformLocation(axisShaderProgram, "color"), 0.0f, 1.0f, 0.0f); // Verde eje Y
         glDrawArrays(GL_LINES, 2, 2);
-        glUniform3f(glGetUniformLocation(shaderProgram, "color"), 0.0f, 0.0f, 1.0f); // Blue for Z-axis
+        glUniform3f(glGetUniformLocation(axisShaderProgram, "color"), 0.0f, 0.0f, 1.0f); // Azul eje Z
         glDrawArrays(GL_LINES, 4, 2);
 
         // Swap buffers and poll events
@@ -319,10 +369,12 @@ int main() {
     for (int i = 0; i < organNum; ++i) {
         glDeleteVertexArrays(1, &organVAOs[i]);
         glDeleteBuffers(1, &organVBOs[i]);
+        glDeleteBuffers(1, &organNormalVBOs[i]);
     }
     glDeleteVertexArrays(1, &axisVAO);
     glDeleteBuffers(1, &axisVBO);
     glDeleteProgram(shaderProgram);
+    glDeleteProgram(axisShaderProgram);
 
     glfwTerminate();
     return 0;

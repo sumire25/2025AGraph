@@ -5,6 +5,58 @@
 #define INDEX(x, y, z, gridX, gridY) ((x) + (y) * (gridX) + (z) * (gridX) * (gridY))
 
 class GridFromTiff {
+private:
+    void erosion(uint32_t* raster, int gridX, int gridY, int structSize) {
+        std::vector temp(raster,raster + gridX * gridY);
+        int offset = structSize / 2;
+        for (int x = 1; x < gridX - 1 ; x++) {
+            for (int y = 1; y < gridY - 1; y++) {
+                bool allWhite = true;
+                for (int d = -offset; d <= offset; ++d) {
+                    uint32_t verticalNeighbor = temp[(y + d) * gridX + x];
+                    if (!(TIFFGetR(verticalNeighbor) == 255 && TIFFGetG(verticalNeighbor) == 255 && TIFFGetB(verticalNeighbor) == 255)) {
+                        allWhite = false;
+                        break;
+                    }
+                    uint32_t horizontalNeighbor = temp[y * gridX + (x + d)];
+                    if (!(TIFFGetR(horizontalNeighbor) == 255 && TIFFGetG(horizontalNeighbor) == 255 && TIFFGetB(horizontalNeighbor) == 255)) {
+                        allWhite = false;
+                        break;
+                    }
+                }
+                raster[y * gridX + x] = allWhite ? 0xFFFFFFFF : 0xFF000000;
+            }
+        }
+    }
+
+    void dilatacion(uint32_t* raster, int gridX, int gridY, int structSize) {
+        std:: vector temp(raster, raster + gridX * gridY);
+        int offset = structSize / 2;
+        for (int x = 1; x < gridX - 1; x++) {
+            for (int y = 1; y < gridY - 1; y++) {
+                bool anyWhiteNeighbor = false;
+                for (int d = -offset; d <= offset; ++d) {
+                    uint32_t verticalNeighbor = temp[(y + d) * gridX + x];
+                    if (TIFFGetR(verticalNeighbor) == 255 && TIFFGetG(verticalNeighbor) == 255 && TIFFGetB(verticalNeighbor) == 255) {
+                        anyWhiteNeighbor = true;
+                        break;
+                    }
+                    uint32_t horizontalNeighbor = temp[y * gridX + (x + d)];
+                    if (TIFFGetR(horizontalNeighbor) == 255 && TIFFGetG(horizontalNeighbor) == 255 && TIFFGetB(horizontalNeighbor) == 255) {
+                        anyWhiteNeighbor = true;
+                        break;
+                    }
+                }
+                raster[y * gridX + x] = anyWhiteNeighbor ? 0xFFFFFFFF : 0xFF000000;
+            }
+        }
+    }
+
+    void apertura(uint32_t* raster, int gridX, int gridY, int structSize) {
+        erosion(raster, gridX, gridY, structSize);
+        dilatacion(raster, gridX, gridY, structSize);
+    }
+
 public:
     void run(const std::string& filePath, std::vector<bool>& grid, int& gridX, int& gridY, int& gridZ, std::vector<float>& objectCenter) {
         grid.clear();
@@ -34,6 +86,8 @@ public:
                 TIFFClose(tiff);
                 return;
             }
+
+            apertura(raster, gridX, gridY, 3);
             for (int y = 0; y < gridY; y++) {
                 for (int x = 0; x < gridX; x++) {
                     uint32_t pixel = raster[y * gridX + x];
